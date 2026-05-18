@@ -10,14 +10,15 @@ This repository is a **research-story README** for a line of work on **Knowledge
 
 > **Unlearning is not complete when a model merely fails on the original forget samples. A trustworthy deletion mechanism must also remove residual knowledge that can reappear through generation, perturbation, model structure, or sequential decision making.**
 
-The goal of this repo is not to provide a new monolithic codebase. Instead, it serves as a readable portfolio artifact that connects four related projects:
+The goal of this repo is not to provide a new monolithic codebase. Instead, it serves as a readable portfolio artifact that connects five related projects:
 
 - **Machine unlearning for image-to-image generative models**
 - **Residual knowledge and robust unlearning under perturbed samples**
 - **XGBoost unlearning for tabular models**
 - **RL state unlearning for sequential decision-making**
+- **SAE-based unlearning and inference-time hazardous capability suppression**
 
-SAE-based unlearning is intentionally left as a future direction because that artifact is still under development.
+The SAE unlearning artifact is included as a compact mechanistic extension: it is not weight-level deletion yet, but it shows how sparse features can be used to suppress unwanted capability at inference time and diagnose why simple feature clamping is insufficient.
 
 ---
 
@@ -27,7 +28,7 @@ Most definitions of machine unlearning compare an unlearned model with a model r
 
 But this comparison hides several difficult questions.
 
-What if the model no longer recognizes the exact forget image, but still reconstructs it from partial information? What if it appears to forget an image, but recognizes small adversarial perturbations of it better than a retrained model? What if the model is not a neural classifier at all, but an XGBoost model whose knowledge is stored in tree statistics? What if the target to forget is not a static example, but a state in a reinforcement-learning environment whose influence has already propagated through value estimates and credit assignment?
+What if the model no longer recognizes the exact forget image, but still reconstructs it from partial information? What if it appears to forget an image, but recognizes small adversarial perturbations of it better than a retrained model? What if the model is not a neural classifier at all, but an XGBoost model whose knowledge is stored in tree statistics? What if the target to forget is not a static example, but a state in a reinforcement-learning environment whose influence has already propagated through value estimates and credit assignment? What if the knowledge to remove is not a dataset row, but a hazardous capability represented by sparse internal features that can be clamped or gated at inference time?
 
 These cases point to the same lesson:
 
@@ -42,7 +43,9 @@ flowchart LR
     B --> D[Residual knowledge<br/>Can forgotten samples reappear under perturbation?]
     B --> E[XGBoost unlearning<br/>Can tree statistics be updated without retraining?]
     B --> F[RL state unlearning<br/>Can an agent forget state-level knowledge and credit assignment?]
-    D --> G[Future: SAE unlearning<br/>Can knowledge be removed at feature or circuit level?]
+    B --> G[SAE unlearning<br/>Can sparse features suppress hazardous capability?]
+    D --> G
+    G --> H[Future: mechanistic deletion<br/>Can knowledge be removed at feature or circuit level?]
 ```
 
 ---
@@ -142,9 +145,42 @@ This artifact matters because it shifts unlearning from data removal to **behavi
 
 ---
 
+## 5. From behavioral deletion to SAE-based capability suppression
+
+The previous projects treat unlearning as a behavioral or structural problem: make the model behave like retraining, stop reconstructing forgotten images, subtract tree statistics, or remove the effect of a state from an agent's value function. But modern language models raise a more mechanistic question:
+
+> Can we suppress unwanted knowledge by intervening on the internal features that appear to represent it?
+
+The **SAE-Unlearning** artifact studies this question through **Dynamic SAE Guardrails (DSG)** on **WMDP-Cyber**, using `google/gemma-2-2b-it` with a Gemma Scope sparse autoencoder at layer 3. The artifact is best understood as **inference-time hazardous capability suppression**, rather than full weight-level unlearning: the model weights are not retrained, but selected SAE features are used to suppress cyber-relevant behavior while preserving general utility.
+
+The repo is useful because it does not merely report a final number. It asks why the intervention works.
+
+The main comparison is between:
+
+1. **Base model**, which answers the model-correct filtered WMDP-Cyber subset correctly by construction.
+2. **Naive forget-feature clamping**, which clamps selected SAE features locally when they activate.
+3. **Residual Cleansing**, which tests whether forget information remains in the SAE reconstruction residual.
+4. **Tuned DSG**, which combines sequence-level gating with dense hot-token clamping.
+5. **Mechanism ablations**, which separate the effect of dense clamping from the effect of sequence gating.
+
+The key result is that naive feature clamping is not enough. In the reproduced configuration, naive clamping reduces WMDP-Cyber accuracy from 100.0% to 61.1%, while tuned DSG reduces it to 33.8% with MMLU-All utility at 99.1%. The mechanism ablation shows why: **dense hot-token clamping drives forgetting, while sequence-level gating preserves utility**.
+
+This artifact adds a new layer to the Knowledge Removal story. It suggests that some forms of deletion may require going beyond output-level behavior and asking which sparse features, tokens, and residual directions carry the unwanted capability.
+
+It also introduces an important caveat:
+
+> SAE-based guardrails are not automatically equivalent to true machine unlearning. They are a step toward mechanistic removal, but they currently provide inference-time suppression rather than a retrained-model guarantee.
+
+That caveat is valuable. It keeps the repo honest while making it relevant to the broader unlearning agenda: if robust unlearning asks whether forgotten knowledge survives under perturbation, SAE unlearning asks whether that knowledge survives inside the model's sparse feature geometry.
+
+**Code:** [HsiangHsu/SAE-Unlearning](https://github.com/HsiangHsu/SAE-Unlearning)
+
+
+---
+
 ## The research arc
 
-The four artifacts form a progression.
+The five artifacts form a progression.
 
 First, image-to-image generative unlearning asks whether a model can stop reconstructing forgotten visual information. This expands unlearning from classifiers to generative models.
 
@@ -153,6 +189,8 @@ Second, residual knowledge asks whether a model that appears to forget can still
 Third, XGBoost unlearning asks how knowledge can be removed from a model family that stores information in tree structures and gradient statistics. This brings unlearning closer to practical tabular systems.
 
 Fourth, RL state unlearning asks how deletion works when information is distributed through trajectories and value propagation. This moves unlearning from static data to sequential behavior.
+
+Fifth, SAE unlearning asks whether unwanted capability can be suppressed by intervening on sparse internal features. This moves unlearning from behavioral deletion toward mechanistic control, while also clarifying the gap between inference-time guardrails and true weight-level deletion.
 
 Together, they suggest a broader view:
 
@@ -168,6 +206,7 @@ Together, they suggest a broader view:
 | **Robust Unlearning / Residual Knowledge** | Can deleted knowledge reappear under perturbation? | Defines residual knowledge and proposes RURK to suppress recognition of perturbed forget samples. | [Paper](https://proceedings.neurips.cc/paper_files/paper/2025/file/2656bba937d78593fbd99ace9f14e311-Paper-Conference.pdf) · [Code](https://github.com/HsiangHsu/Robust-Unlearning) |
 | **XGBoost Unlearning** | Can tabular tree ensembles be approximately unlearned without full retraining? | Updates XGBoost booster statistics by subtracting forget-sample gradient and Hessian contributions. | [Code](https://github.com/HsiangHsu/XGBoost-Unlearning) |
 | **RL State Unlearning** | Can an RL agent forget state-level knowledge and propagated credit assignment? | Minimal GridWorld demo of exact retraining semantics and Value Obfuscation for state unlearning. | [Code](https://github.com/HsiangHsu/RL-Unlearning) |
+| **SAE Unlearning / DSG** | Can sparse features suppress hazardous capability at inference time? | Reproduces and ablates Dynamic SAE Guardrails on WMDP-Cyber; shows dense hot-token clamping drives suppression while sequence gating preserves utility. | [Code](https://github.com/HsiangHsu/SAE-Unlearning) |
 
 ---
 
@@ -180,7 +219,8 @@ A useful unlearning audit should ask more than whether the original forget sampl
 - **Generative deletion:** Can the model still reconstruct, complete, or regenerate forgotten content?
 - **Structural deletion:** Has the forget data been removed from model-specific sufficient statistics, such as tree gradients and Hessians?
 - **Behavioral deletion:** Has the target knowledge stopped influencing downstream actions, values, and policies?
-- **Mechanistic deletion:** Can future feature- or circuit-level probes still recover the supposedly removed concept?
+- **Mechanistic suppression:** Can feature- or circuit-level probes still recover the supposedly removed concept, and can sparse feature interventions suppress it?
+- **Guardrail-vs-unlearning distinction:** Is the method actually removing knowledge from weights, or only suppressing access to it at inference time?
 
 The last point is the bridge to future work.
 
@@ -188,9 +228,13 @@ The last point is the bridge to future work.
 
 ## Future directions
 
-### SAE unlearning: from behavioral deletion to mechanistic deletion
+### From SAE guardrails to true mechanistic unlearning
 
-A natural next step is to connect machine unlearning with sparse autoencoders and mechanistic interpretability. Instead of only fine-tuning model outputs, can we identify SAE features or circuits corresponding to unwanted knowledge and remove, suppress, or rewrite them directly?
+The current SAE artifact shows that sparse feature interventions can suppress hazardous capability at inference time, but it does not yet provide weight-level deletion or retrained-model equivalence. The next step is to turn SAE guardrails into stronger mechanistic unlearning methods.
+
+The key question is:
+
+> Can we identify, suppress, rewrite, or remove sparse features and circuits corresponding to unwanted knowledge while preserving unrelated capabilities?
 
 This would extend the current line from:
 
@@ -198,9 +242,7 @@ This would extend the current line from:
 
 into:
 
-> unlearning as mechanistic removal of identifiable knowledge units.
-
-This artifact is not included yet, but it is the most direct future extension of the Knowledge Removal agenda.
+> unlearning as mechanistic removal or controlled inactivation of identifiable knowledge units.
 
 ### Robust certification beyond original samples
 
@@ -216,7 +258,7 @@ Residual knowledge can become a general-purpose audit for deletion quality. Inst
 
 ### Model-family-specific unlearning
 
-XGBoost unlearning and RL unlearning show that unlearning must respect how knowledge is stored. Future work should develop specialized deletion operators for tree ensembles, retrieval systems, reward models, agents, and modular neural architectures.
+XGBoost unlearning, RL unlearning, and SAE unlearning show that unlearning must respect how knowledge is stored. Future work should develop specialized deletion operators for tree ensembles, retrieval systems, reward models, agents, sparse feature representations, and modular neural architectures.
 
 ---
 
@@ -242,4 +284,4 @@ XGBoost unlearning and RL unlearning show that unlearning must respect how knowl
 
 ## One-line summary
 
-**This research line studies machine unlearning as robust knowledge removal: not only making a model appear to forget, but auditing whether forgotten information survives through generation, perturbation, model structure, or sequential behavior.**
+**This research line studies machine unlearning as robust knowledge removal: not only making a model appear to forget, but auditing whether forgotten information survives through generation, perturbation, model structure, sequential behavior, or sparse internal features.**
