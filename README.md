@@ -214,12 +214,7 @@ $$
 then ranks SAE features by:
 
 $$
-K_{\text{SV-SAE}}
-=
-\operatorname{TopK}_j
-\left(
-|w_j| \cdot \mathbb{E}_{i \in \mathrm{SV}} |z_{ij}|
-\right).
+K_{\text{SV-SAE}} =\operatorname{TopK}_j \left(|w_j| \cdot \mathbb{E}_{i \in \mathrm{SV}} |z_{ij}|\right).
 $$
 
 The intervention uses residual-preserving SAE clamping:
